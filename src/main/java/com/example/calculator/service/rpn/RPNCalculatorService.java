@@ -1,50 +1,37 @@
 package com.example.calculator.service.rpn;
 
-import com.example.calculator.service.rpn.CalculationType;
 import com.example.calculator.service.rpn.exception.InvalidInputException;
-import com.example.calculator.service.rpn.operation.AddOperation;
-import com.example.calculator.service.rpn.operation.DivisionOperation;
-import com.example.calculator.service.rpn.operation.FactorialOperation;
-import com.example.calculator.service.rpn.operation.ModuloOperation;
-import com.example.calculator.service.rpn.operation.MultiplyOperation;
-import com.example.calculator.service.rpn.operation.PowerOperation;
-import com.example.calculator.service.rpn.operation.SubtractionOperation;
+import com.example.calculator.service.rpn.operation.OperationFactory;
+
 import com.example.calculator.service.rpn.strategy.RPNCalculationBinaryStrategy;
 import com.example.calculator.service.rpn.strategy.RPNCalculationStrategy;
 import com.example.calculator.service.rpn.strategy.RPNCalculationUnaryStrategy;
+import com.example.calculator.validators.NumberExpressionValidator;
 import java.util.ArrayDeque;
 import java.util.Deque;
-import java.util.HashMap;
-import java.util.Map;
 import org.springframework.stereotype.Service;
 
 @Service
 public class RPNCalculatorService {
-  public static final String UNSUPPORTED_OPERATOR = "Unsupported operator: ";
+  private final OperationFactory operationFactory;
+  private final NumberExpressionValidator numberExpressionValidator;
 
-  private final Map<String, RPNCalculationStrategy> strategyMap = new HashMap<>();
   private RPNCalculationStrategy strategy;
+
+  public RPNCalculatorService(OperationFactory operationFactory, NumberExpressionValidator numberExpressionValidator) {
+    this.operationFactory = operationFactory;
+    this.numberExpressionValidator = numberExpressionValidator;
+  }
 
   public void setStrategy(RPNCalculationStrategy strategy) {
     this.strategy = strategy;
-  }
-
-
-  public RPNCalculatorService() {
-    strategyMap.put("+", new AddOperation());
-    strategyMap.put("*", new MultiplyOperation());
-    strategyMap.put("-", new SubtractionOperation());
-    strategyMap.put("/", new DivisionOperation());
-    strategyMap.put("%", new ModuloOperation());
-    strategyMap.put("^", new PowerOperation());
-    strategyMap.put("!", new FactorialOperation());
   }
 
   public double calculate(String input) throws InvalidInputException {
     try {
       String[] inputs = input.split(",");
 
-      if (inputs.length == 1 && isValidNumber(inputs[0])) {
+      if (inputs.length == 1 && numberExpressionValidator.isValid((inputs[0]))) {
         return Double.parseDouble(inputs[0]);
       }
 
@@ -53,17 +40,13 @@ public class RPNCalculatorService {
       for (String token : inputs) {
         token = token.trim();
 
-        if (isValidNumber(token)) {
+        if (numberExpressionValidator.isValid(token)) {
           queue.push(Double.parseDouble(token));
 
-        } else if (!strategyMap.containsKey(token)){
-          throw new IllegalArgumentException(UNSUPPORTED_OPERATOR + token);
-
         } else {
-          this.setStrategy(strategyMap.get(token));
+          this.setStrategy(operationFactory.getOperation(token));
           queue.push(this.calculate(queue));
         }
-
       }
 
       if (queue.size() > 1) {
@@ -87,16 +70,5 @@ public class RPNCalculatorService {
     }
 
     return ((RPNCalculationUnaryStrategy)strategy).calculate(queue.pop());
-  }
-
-  private boolean isValidNumber(String str) {
-
-    try {
-      Double.parseDouble(str);
-      return true;
-
-    } catch (NumberFormatException e) {
-      return false;
-    }
   }
 }
